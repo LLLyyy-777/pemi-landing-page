@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Meet Pemi and try a playful AI-powered pet expression reading."
+    />
+    <title>Pemi | What Is Your Pet Thinking?</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <section class="landing-shell" aria-label="Pemi pet mind experience">
+        <header class="brand-bar desktop-only">
+          <a class="brand" href="#experience-section" aria-label="Pemi home">
+            <span class="brand-mascot" aria-hidden="true">
+              <img src="./assets/pemi-logo.png" alt="" />
+            </span>
+            <span class="brand-word">pemi</span>
+          </a>
+          <p>Understand every little thing your pet feels.</p>
+          <a
+            class="app-link"
+            href="https://linktr.ee/pemibewithu"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Explore the app <span aria-hidden="true">&rarr;</span>
+          </a>
+        </header>
+
+        <section class="mobile-shell" aria-labelledby="mobile-title">
+          <div class="mobile-brand-row">
+            <div class="mobile-brand-lockup" aria-label="Pemi">
+              <span class="brand-mascot" aria-hidden="true">
+                <img src="./assets/pemi-logo.png" alt="" />
+              </span>
+              <span class="brand-word">pemi</span>
+            </div>
+            <span>AI for pet lovers</span>
+          </div>
+
+          <div class="mobile-hero-copy">
+            <h1 id="mobile-title">What is your pet <span>really feeling?</span></h1>
+            <p>
+              Bring that little face into frame. Pemi will turn one expression into a playful pet-to-human translation.
+            </p>
+          </div>
+        </section>
+
+        <div class="desktop-stage">
+          <aside class="storybook-vignette storybook-vignette-left" aria-hidden="true">
+            <img src="./assets/storybook-left.png" alt="" />
+          </aside>
+
+          <section id="experience-section" class="experience-panel" aria-label="Pemi Pet Mind Chat">
+            <div class="experience-copy">
+              <h1 id="desktop-title">What is your pet <span>really feeling?</span></h1>
+              <p class="lead">
+                Bring that little face into frame. Pemi will turn one expression into a playful pet-to-human translation.
+              </p>
+            </div>
+
+            <div class="camera-card camera-stage">
+              <div class="camera-topline">
+                <p><span class="live-dot" aria-hidden="true"></span> Pet mood translator</p>
+                <span>Playful AI preview</span>
+              </div>
+
+              <div class="experience-visual">
+                <div class="video-frame">
+                  <video id="camera" autoplay playsinline muted></video>
+                  <canvas id="snapshot" hidden></canvas>
+                  <div id="empty-state" class="empty-state">
+                    <div class="empty-state-illustration" aria-hidden="true">
+                      <span class="storybook-pet-outline">
+                        <i class="pet-ear pet-ear-left"></i>
+                        <i class="pet-ear pet-ear-right"></i>
+                        <i class="pet-head"></i>
+                        <i class="pet-whiskers"></i>
+                      </span>
+                      <span class="lens-mark"></span>
+                    </div>
+                    <div>
+                      <p>Getting the camera ready</p>
+                      <small>Your browser may ask for permission.</small>
+                    </div>
+                  </div>
+                  <div id="pet-guide" class="pet-guide" aria-hidden="true">
+                    <span></span><span></span><span></span><span></span>
+                  </div>
+                  <div id="bird-playground" class="bird-playground" hidden aria-hidden="true">
+                    <div class="pet-bird pet-bird-one">
+                      <div class="bird-art">
+                        <svg viewBox="0 0 48 42" focusable="false">
+                          <path class="bird-tail" d="M13 27 4 32l8 3Z" fill="currentColor" />
+                          <path class="bird-body" d="M10 25c0-9 8-16 18-16 9 0 16 6 16 14 0 8-7 13-18 13-9 0-16-4-16-11Z" fill="currentColor" />
+                          <path class="bird-wing" d="M17 24c4-9 13-11 19-5-4 2-8 7-10 12-5 0-8-2-9-7Z" fill="#fff7ef" />
+                          <circle cx="35" cy="18" r="2" fill="#2d2927" />
+                          <path d="m43 21 5 3-5 2Z" fill="#ffd568" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div class="pet-bird pet-bird-two">
+                      <div class="bird-art">
+                        <svg viewBox="0 0 48 42" focusable="false">
+                          <path class="bird-tail" d="M13 27 4 32l8 3Z" fill="currentColor" />
+                          <path class="bird-body" d="M10 25c0-9 8-16 18-16 9 0 16 6 16 14 0 8-7 13-18 13-9 0-16-4-16-11Z" fill="currentColor" />
+                          <path class="bird-wing" d="M17 24c4-9 13-11 19-5-4 2-8 7-10 12-5 0-8-2-9-7Z" fill="#fff7ef" />
+                          <circle cx="35" cy="18" r="2" fill="#2d2927" />
+                          <path d="m43 21 5 3-5 2Z" fill="#ffd568" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div class="pet-bird pet-bird-three">
+                      <div class="bird-art">
+                        <svg viewBox="0 0 48 42" focusable="false">
+                          <path class="bird-tail" d="M13 27 4 32l8 3Z" fill="currentColor" />
+                          <path class="bird-body" d="M10 25c0-9 8-16 18-16 9 0 16 6 16 14 0 8-7 13-18 13-9 0-16-4-16-11Z" fill="currentColor" />
+                          <path class="bird-wing" d="M17 24c4-9 13-11 19-5-4 2-8 7-10 12-5 0-8-2-9-7Z" fill="#fff7ef" />
+                          <circle cx="35" cy="18" r="2" fill="#2d2927" />
+                          <path d="m43 21 5 3-5 2Z" fill="#ffd568" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="detection-prompt" class="detection-prompt" role="status" aria-live="polite" hidden>
+                    <p id="detection-prompt-title">No pet spotted yet</p>
+                    <small id="detection-prompt-copy">Bring your pet into the camera so Pemi can find them.</small>
+                  </div>
+                  <div id="waiting-overlay" class="waiting-overlay" hidden>
+                    <div class="waiting-status">
+                      <span class="waiting-status-birds" aria-hidden="true">•••</span>
+                      <p id="waiting-message" aria-live="polite">The birds found your pet...</p>
+                    </div>
+                  </div>
+                </div>
+
+                <section id="result" class="result result-frame" hidden aria-labelledby="result-title">
+                  <div class="result-copy-area">
+                    <div class="result-heading">
+                      <p class="result-kicker">Pemi's playful translation</p>
+                      <span aria-hidden="true">&ldquo;</span>
+                    </div>
+                    <h2 id="result-title">Listening closely...</h2>
+                    <p id="result-copy"></p>
+                    <small>For fun, inspired by the expression and posture visible in this moment.</small>
+                  </div>
+                  <figure class="result-photo">
+                    <canvas
+                      id="result-snapshot"
+                      role="img"
+                      aria-label="A still frame from your pet's five-second Pemi reading"
+                    >A still frame from your pet's five-second Pemi reading.</canvas>
+                  </figure>
+                </section>
+              </div>
+
+              <div class="status-panel">
+                <p id="status-text" class="status-text" aria-live="polite">
+                  Ready for a little heart-to-heart? Find a bright, comfy spot.
+                </p>
+                <div class="actions">
+                  <button id="start-btn" class="button primary" type="button">Open Camera</button>
+                  <button id="retry-btn" class="button secondary" type="button" disabled hidden>
+                    Try It Again
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            <a
+              class="mobile-download-cta"
+              href="https://linktr.ee/pemibewithu"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Download Pemi <span aria-hidden="true">&rarr;</span>
+            </a>
+          </section>
+
+          <aside class="storybook-vignette storybook-vignette-right" aria-hidden="true">
+            <img src="./assets/storybook-right.png" alt="" />
+          </aside>
+        </div>
+
+      </section>
+    </main>
+
+    <dialog id="poster-dialog" class="poster-dialog" aria-labelledby="poster-dialog-title">
+      <div class="poster-viewer">
+        <header class="poster-dialog-header">
+          <div>
+            <p>Explore Pemi</p>
+            <h2 id="poster-dialog-title">Pemi feature</h2>
+          </div>
+          <button id="poster-close" class="dialog-icon-button" type="button" aria-label="Close poster" title="Close">
+            &times;
+          </button>
+        </header>
+
+        <div class="poster-canvas">
+          <img id="poster-dialog-image" src="./assets/more-than-photo.jpg" alt="" />
+        </div>
+
+        <footer class="poster-dialog-footer">
+          <p id="poster-counter">1 of 4</p>
+          <div class="poster-navigation">
+            <button id="poster-previous" class="dialog-icon-button" type="button" aria-label="Previous poster" title="Previous poster">
+              &#8592;
+            </button>
+            <button id="poster-next" class="dialog-icon-button" type="button" aria-label="Next poster" title="Next poster">
+              &#8594;
+            </button>
+          </div>
+        </footer>
+      </div>
+    </dialog>
+
+    <script src="./pet-tracking-utils.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

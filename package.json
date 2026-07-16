@@ -1,0 +1,19 @@
+{
+  "name": "pemi-pet-mood-landing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "check": "node --check app.js && node --check pet-tracking-utils.js && node --check pet-detector-worker.js && node --check server.js",
+    "test": "node --test tests/pet-tracking.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ffmpeg-static": "^5.3.0",
+    "onnxruntime-web": "^1.27.0"
+  }
+}
