@@ -14,6 +14,8 @@ const waitingMessage = document.querySelector("#waiting-message");
 const statusText = document.querySelector("#status-text");
 const startButton = document.querySelector("#start-btn");
 const retryButton = document.querySelector("#retry-btn");
+const cameraSwitchButton = document.querySelector("#camera-switch-btn");
+const cameraSwitchStatus = document.querySelector("#camera-switch-status");
 const result = document.querySelector("#result");
 const resultSnapshot = document.querySelector("#result-snapshot");
 const resultTitle = document.querySelector("#result-title");
@@ -65,6 +67,14 @@ const STATES = {
 
 let appState = STATES.IDLE;
 let stream = null;
+let preferredCameraFacingMode = "user";
+let activeCameraFacingMode = "user";
+let phoneCameraUiEnabled = false;
+let cameraSwitchAvailable = null;
+let isSwitchingCamera = false;
+let cameraOperationSequence = 0;
+let cameraStreamGeneration = 0;
+let resumeBirdsAfterCameraSwitch = false;
 let detectorWorker = null;
 let detectorReady = false;
 let detectorFallback = false;
@@ -117,13 +127,46 @@ function setStatus(message) {
   statusText.textContent = message;
 }
 
+function isCameraPreviewMirrored() {
+  return petTracking.shouldMirrorCamera(activeCameraFacingMode);
+}
+
+function announceCameraSwitch(message) {
+  cameraSwitchStatus.textContent = "";
+  window.requestAnimationFrame(() => {
+    cameraSwitchStatus.textContent = message;
+  });
+}
+
+function syncCameraPresentation() {
+  const mirrored = isCameraPreviewMirrored();
+  const targetLabel = mirrored ? "rear" : "front";
+  cameraStage.classList.toggle("is-front-camera", mirrored);
+  cameraSwitchButton.setAttribute("aria-label", `Switch to ${targetLabel} camera`);
+  cameraSwitchButton.title = `Switch to ${targetLabel} camera`;
+}
+
+function isCameraSwitchAllowedState() {
+  return [STATES.LOADING_MODEL, STATES.SEARCHING, STATES.ANALYZING, STATES.ERROR].includes(
+    appState
+  );
+}
+
 function refreshControls() {
   const canRetry = [STATES.SUCCESS, STATES.ERROR].includes(appState);
+  const showCameraSwitch =
+    phoneCameraUiEnabled &&
+    Boolean(stream) &&
+    cameraSwitchAvailable !== false &&
+    isCameraSwitchAllowedState();
 
   startButton.hidden = Boolean(stream) || appState === STATES.REQUESTING_CAMERA;
-  startButton.disabled = appState === STATES.REQUESTING_CAMERA || isBusy();
+  startButton.disabled = appState === STATES.REQUESTING_CAMERA || isBusy() || isSwitchingCamera;
   retryButton.hidden = !stream || !canRetry;
-  retryButton.disabled = isBusy() || !stream || !canRetry;
+  retryButton.disabled = isBusy() || isSwitchingCamera || !stream || !canRetry;
+  cameraSwitchButton.hidden = !showCameraSwitch;
+  cameraSwitchButton.disabled = isSwitchingCamera;
+  cameraSwitchButton.classList.toggle("is-switching", isSwitchingCamera);
 }
 
 function setAppState(nextState) {
@@ -203,8 +246,12 @@ function saveResultFrame(sourceCanvas) {
   resultSnapshot.height = sourceCanvas.height;
   const context = resultSnapshot.getContext("2d");
   context.save();
-  context.translate(sourceCanvas.width, 0);
-  context.scale(-1, 1);
+
+  if (isCameraPreviewMirrored()) {
+    context.translate(sourceCanvas.width, 0);
+    context.scale(-1, 1);
+  }
+
   context.drawImage(sourceCanvas, 0, 0);
   context.restore();
   resultSnapshotReady = true;
@@ -395,7 +442,7 @@ function refreshBirdTarget() {
     camera.videoHeight,
     frameWidth,
     frameHeight,
-    true
+    isCameraPreviewMirrored()
   );
 
   if (!mappedBox || !mappedBox.width || !mappedBox.height) {
@@ -777,6 +824,11 @@ function handleDetection(pet, requestId) {
 
   updateBirdTracking(pet);
 
+  if (resumeBirdsAfterCameraSwitch && appState === STATES.ANALYZING && pet?.box) {
+    resumeBirdsAfterCameraSwitch = false;
+    activateBirdPlayground();
+  }
+
   if (appState !== STATES.SEARCHING) {
     scheduleDetection();
     return;
@@ -962,6 +1014,7 @@ function beginSearching() {
   hideResult();
   hideWaitingOverlay();
   deactivateBirdPlayground({ immediate: true });
+  resumeBirdsAfterCameraSwitch = false;
   currentVideoBlob = null;
   resetDetectionHistory();
 
@@ -997,37 +1050,310 @@ function beginSearching() {
   setStatus("Camera ready. Pemi is warming up the pet finder...");
 }
 
-async function startCamera() {
-  if (stream || appState === STATES.REQUESTING_CAMERA) {
+function createCameraConstraints(facingMode, exact = false) {
+  return {
+    video: {
+      facingMode: exact ? { exact: facingMode } : { ideal: facingMode },
+      width: { ideal: 1280 },
+      height: { ideal: 960 }
+    },
+    audio: false
+  };
+}
+
+function releaseMediaStream(targetStream) {
+  targetStream?.getTracks().forEach((track) => track.stop());
+}
+
+function getStreamVideoSettings(targetStream) {
+  return targetStream?.getVideoTracks()[0]?.getSettings?.() || {};
+}
+
+function getReportedFacingMode(targetStream, fallbackFacingMode) {
+  const reportedFacingMode = getStreamVideoSettings(targetStream).facingMode;
+  return ["user", "environment"].includes(reportedFacingMode)
+    ? reportedFacingMode
+    : fallbackFacingMode;
+}
+
+function canRelaxCameraConstraint(error) {
+  return ["OverconstrainedError", "NotFoundError", "TypeError"].includes(error?.name);
+}
+
+function createUnavailableCameraError() {
+  const error = new Error("The other camera is not available on this device.");
+  error.name = "CameraUnavailableError";
+  return error;
+}
+
+async function requestCameraStream(facingMode, exact = false) {
+  return navigator.mediaDevices.getUserMedia(createCameraConstraints(facingMode, exact));
+}
+
+function ensureCameraStreamChanged(targetStream, targetFacingMode, previousDeviceId) {
+  const settings = getStreamVideoSettings(targetStream);
+  const reportedFacingMode = settings.facingMode;
+  const returnedPreviousCamera =
+    Boolean(previousDeviceId) && Boolean(settings.deviceId) && settings.deviceId === previousDeviceId;
+  const returnedWrongDirection =
+    ["user", "environment"].includes(reportedFacingMode) &&
+    reportedFacingMode !== targetFacingMode;
+
+  if (returnedPreviousCamera || returnedWrongDirection) {
+    releaseMediaStream(targetStream);
+    throw createUnavailableCameraError();
+  }
+
+  return targetStream;
+}
+
+async function requestCameraForSwitch(targetFacingMode, previousDeviceId) {
+  try {
+    const exactStream = await requestCameraStream(targetFacingMode, true);
+    return ensureCameraStreamChanged(exactStream, targetFacingMode, previousDeviceId);
+  } catch (error) {
+    if (!canRelaxCameraConstraint(error)) {
+      throw error;
+    }
+  }
+
+  const relaxedStream = await requestCameraStream(targetFacingMode);
+  return ensureCameraStreamChanged(relaxedStream, targetFacingMode, previousDeviceId);
+}
+
+async function connectCameraStream(nextStream, requestedFacingMode, operationId) {
+  if (operationId !== cameraOperationSequence) {
+    releaseMediaStream(nextStream);
+    return false;
+  }
+
+  stream = nextStream;
+  camera.srcObject = nextStream;
+  await camera.play().catch(() => undefined);
+
+  if (operationId !== cameraOperationSequence || stream !== nextStream) {
+    releaseMediaStream(nextStream);
+
+    if (camera.srcObject === nextStream) {
+      camera.srcObject = null;
+    }
+
+    return false;
+  }
+
+  activeCameraFacingMode = getReportedFacingMode(nextStream, requestedFacingMode);
+  emptyState.hidden = true;
+  syncCameraPresentation();
+  const generation = ++cameraStreamGeneration;
+  nextStream.getVideoTracks()[0]?.addEventListener(
+    "ended",
+    () => {
+      if (
+        stream !== nextStream ||
+        generation !== cameraStreamGeneration ||
+        isSwitchingCamera
+      ) {
+        return;
+      }
+
+      stopCamera();
+      setStatus("The camera stopped. Open it again when your pet is ready.");
+    },
+    { once: true }
+  );
+  refreshControls();
+  return true;
+}
+
+async function refreshCameraSwitchAvailability() {
+  if (!phoneCameraUiEnabled || !navigator.mediaDevices?.enumerateDevices) {
+    cameraSwitchAvailable = phoneCameraUiEnabled ? null : false;
+    refreshControls();
     return;
   }
 
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cameraCount = devices.filter((device) => device.kind === "videoinput").length;
+    cameraSwitchAvailable = cameraCount ? cameraCount > 1 : null;
+  } catch (error) {
+    cameraSwitchAvailable = null;
+  }
+
+  refreshControls();
+}
+
+function restoreLiveCameraPhase(previousState) {
+  if (appState === STATES.SUCCESS) {
+    refreshControls();
+    return;
+  }
+
+  if (previousState === STATES.SEARCHING && appState === STATES.SEARCHING) {
+    beginSearching();
+    return;
+  }
+
+  if (previousState === STATES.LOADING_MODEL && appState === STATES.LOADING_MODEL) {
+    if (detectorReady) {
+      beginSearching();
+    } else {
+      petGuide.hidden = false;
+      showDetectionPrompt();
+      refreshControls();
+    }
+    return;
+  }
+
+  if (previousState === STATES.ANALYZING && appState === STATES.ANALYZING) {
+    scheduleDetection(0);
+  }
+
+  refreshControls();
+}
+
+async function switchCamera() {
+  if (
+    !phoneCameraUiEnabled ||
+    cameraSwitchAvailable === false ||
+    isSwitchingCamera ||
+    !stream ||
+    !isCameraSwitchAllowedState()
+  ) {
+    return;
+  }
+
+  const previousState = appState;
+  const previousStream = stream;
+  const previousFacingMode = activeCameraFacingMode;
+  const previousPreferredFacingMode = preferredCameraFacingMode;
+  const previousDeviceId = getStreamVideoSettings(previousStream).deviceId;
+  const targetFacingMode = petTracking.getNextCameraFacingMode(previousFacingMode);
+  const operationId = ++cameraOperationSequence;
+  let nextStream = null;
+
+  isSwitchingCamera = true;
+  refreshControls();
+  announceCameraSwitch(`Switching to ${targetFacingMode === "environment" ? "rear" : "front"} camera.`);
+  stopDetectionLoop();
+  resetDetectionHistory();
+  deactivateBirdPlayground({ immediate: true });
+  resumeBirdsAfterCameraSwitch = previousState === STATES.ANALYZING;
+  pendingResultFrameRequestId = null;
+  clearCanvas(pendingResultFrame);
+  stream = null;
+  camera.srcObject = null;
+  cameraStreamGeneration += 1;
+  releaseMediaStream(previousStream);
+
+  try {
+    nextStream = await requestCameraForSwitch(targetFacingMode, previousDeviceId);
+
+    if (!(await connectCameraStream(nextStream, targetFacingMode, operationId))) {
+      return;
+    }
+
+    preferredCameraFacingMode = activeCameraFacingMode;
+    await refreshCameraSwitchAvailability();
+
+    if (operationId !== cameraOperationSequence) {
+      return;
+    }
+
+    isSwitchingCamera = false;
+    syncCameraPresentation();
+    refreshControls();
+    announceCameraSwitch(
+      `${activeCameraFacingMode === "environment" ? "Rear" : "Front"} camera is now active.`
+    );
+    restoreLiveCameraPhase(previousState);
+  } catch (error) {
+    if (operationId !== cameraOperationSequence) {
+      releaseMediaStream(nextStream);
+      return;
+    }
+
+    releaseMediaStream(nextStream);
+
+    if (["CameraUnavailableError", "NotFoundError", "OverconstrainedError"].includes(error?.name)) {
+      cameraSwitchAvailable = false;
+    }
+
+    let restored = false;
+
+    try {
+      const restoredStream = await requestCameraStream(previousFacingMode);
+      restored = await connectCameraStream(restoredStream, previousFacingMode, operationId);
+    } catch (restoreError) {
+      console.error("Could not restore the previous camera:", restoreError);
+    }
+
+    if (operationId !== cameraOperationSequence) {
+      return;
+    }
+
+    preferredCameraFacingMode = previousPreferredFacingMode;
+    isSwitchingCamera = false;
+    syncCameraPresentation();
+    refreshControls();
+    announceCameraSwitch("The other camera is unavailable. The previous camera was restored.");
+
+    if (restored) {
+      restoreLiveCameraPhase(previousState);
+      return;
+    }
+
+    stream = null;
+    camera.srcObject = null;
+    emptyState.hidden = false;
+    petGuide.hidden = true;
+    detectionPrompt.hidden = true;
+
+    if (![STATES.ANALYZING, STATES.SUCCESS].includes(appState)) {
+      setAppState(STATES.ERROR);
+      setStatus("The camera could not restart. Tap Open Camera to try again.");
+    } else {
+      refreshControls();
+    }
+  }
+}
+
+async function startCamera() {
+  if (stream || appState === STATES.REQUESTING_CAMERA || isSwitchingCamera) {
+    return;
+  }
+
+  const operationId = ++cameraOperationSequence;
+  let nextStream = null;
   hideResult();
   hideWaitingOverlay();
   deactivateBirdPlayground({ immediate: true });
+  resumeBirdsAfterCameraSwitch = false;
   setAppState(STATES.REQUESTING_CAMERA);
   setStatus("Say yes to the camera so Pemi can look for your pet...");
 
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "user",
-        width: { ideal: 1280 },
-        height: { ideal: 960 }
-      },
-      audio: false
-    });
+    nextStream = await requestCameraStream(preferredCameraFacingMode);
 
-    camera.srcObject = stream;
-    await camera.play().catch(() => undefined);
-    emptyState.hidden = true;
-    stream.getVideoTracks()[0]?.addEventListener("ended", () => {
-      stopCamera();
-      setStatus("The camera stopped. Open it again when your pet is ready.");
-    });
-    beginSearching();
+    if (!(await connectCameraStream(nextStream, preferredCameraFacingMode, operationId))) {
+      return;
+    }
+
+    preferredCameraFacingMode = activeCameraFacingMode;
+    await refreshCameraSwitchAvailability();
+
+    if (operationId === cameraOperationSequence) {
+      beginSearching();
+    }
   } catch (error) {
+    if (operationId !== cameraOperationSequence) {
+      releaseMediaStream(nextStream);
+      return;
+    }
+
+    releaseMediaStream(nextStream);
     stream = null;
+    camera.srcObject = null;
     deactivateBirdPlayground({ immediate: true });
     petGuide.hidden = true;
     detectionPrompt.hidden = true;
@@ -1048,14 +1374,14 @@ async function startCamera() {
 }
 
 function stopCamera() {
+  cameraOperationSequence += 1;
+  cameraStreamGeneration += 1;
+  isSwitchingCamera = false;
+  resumeBirdsAfterCameraSwitch = false;
   stopDetectionLoop();
   hideWaitingOverlay();
   deactivateBirdPlayground({ immediate: true });
-
-  if (stream) {
-    stream.getTracks().forEach((track) => track.stop());
-  }
-
+  releaseMediaStream(stream);
   stream = null;
   camera.srcObject = null;
   emptyState.hidden = false;
@@ -1322,6 +1648,7 @@ async function submitCurrentClip() {
     hideWaitingOverlay();
     stopDetectionLoop();
     deactivateBirdPlayground();
+    resumeBirdsAfterCameraSwitch = false;
     setAppState(STATES.SUCCESS);
     showResult();
     setStatus("Message received! Try another look whenever your pet is ready.");
@@ -1330,6 +1657,7 @@ async function submitCurrentClip() {
     hideWaitingOverlay();
     stopDetectionLoop();
     deactivateBirdPlayground();
+    resumeBirdsAfterCameraSwitch = false;
     resetResultFrameCapture();
     setAppState(STATES.ERROR);
     setStatus(`${error.message || "The message got fuzzy."} Tap Try It Again to start a new reading.`);
@@ -1337,7 +1665,7 @@ async function submitCurrentClip() {
 }
 
 async function runNewAnalysis() {
-  if (!stream || isBusy()) {
+  if (!stream || isBusy() || isSwitchingCamera) {
     return;
   }
 
@@ -1375,6 +1703,7 @@ async function runNewAnalysis() {
     hideWaitingOverlay();
     stopDetectionLoop();
     deactivateBirdPlayground();
+    resumeBirdsAfterCameraSwitch = false;
     resetResultFrameCapture();
     setAppState(STATES.ERROR);
     setStatus(error.message || "The message got fuzzy. Try brighter light and a steadier pose.");
@@ -1481,6 +1810,7 @@ function boot() {
   petGuide.hidden = true;
   birdPlayground.hidden = true;
   detectionPrompt.hidden = true;
+  cameraSwitchButton.hidden = true;
   reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   if (!petTracking) {
@@ -1488,6 +1818,13 @@ function boot() {
     setStatus("Pemi's pet tracker could not start. Refresh the page to try again.");
     return;
   }
+
+  phoneCameraUiEnabled = petTracking.isLikelyPhoneDevice(
+    navigator.userAgent,
+    navigator.userAgentData?.mobile
+  );
+  document.documentElement.classList.toggle("is-phone-device", phoneCameraUiEnabled);
+  syncCameraPresentation();
 
   if (!isCameraContextAllowed()) {
     startButton.disabled = true;
@@ -1503,6 +1840,7 @@ function boot() {
 
   startButton.addEventListener("click", startCamera);
   retryButton.addEventListener("click", handleRetry);
+  cameraSwitchButton.addEventListener("click", switchCamera);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       window.clearTimeout(detectionTimer);

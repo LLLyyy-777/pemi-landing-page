@@ -8,9 +8,12 @@ const {
   calculateLuminanceGradientSharpness,
   calculateResultFrameMinimumHeight,
   clampPointToFrame,
+  getNextCameraFacingMode,
   getLetterboxMetrics,
+  isLikelyPhoneDevice,
   mapNormalizedBoxToFrame,
-  normalizeModelBox
+  normalizeModelBox,
+  shouldMirrorCamera
 } = globalThis.PemiPetTracking;
 
 function assertClose(actual, expected, epsilon = 0.000001) {
@@ -72,6 +75,34 @@ test("mirrors an off-center box into camera-preview coordinates", () => {
   );
 
   assertBoxClose(box, { x: 1120, y: 210, width: 320, height: 240 });
+});
+
+test("keeps an off-center box unmirrored for a rear-camera preview", () => {
+  const box = mapNormalizedBoxToFrame(
+    { x: 0.1, y: 0.3, width: 0.2, height: 0.2 },
+    1280,
+    960,
+    1600,
+    900,
+    false
+  );
+
+  assertBoxClose(box, { x: 160, y: 210, width: 320, height: 240 });
+});
+
+test("toggles camera direction and mirrors only the front camera", () => {
+  assert.equal(getNextCameraFacingMode("user"), "environment");
+  assert.equal(getNextCameraFacingMode("environment"), "user");
+  assert.equal(shouldMirrorCamera("user"), true);
+  assert.equal(shouldMirrorCamera("environment"), false);
+});
+
+test("identifies phones without treating tablets or desktop windows as phones", () => {
+  assert.equal(isLikelyPhoneDevice("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)"), true);
+  assert.equal(isLikelyPhoneDevice("Mozilla/5.0 (Linux; Android 15; Pixel 9) Mobile"), true);
+  assert.equal(isLikelyPhoneDevice("Mozilla/5.0 (iPad; CPU OS 18_0)"), false);
+  assert.equal(isLikelyPhoneDevice("Mozilla/5.0 (Macintosh; Intel Mac OS X)"), false);
+  assert.equal(isLikelyPhoneDevice("desktop", true), true);
 });
 
 test("clips boxes at the visible edge of a mobile cover frame", () => {

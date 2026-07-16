@@ -147,14 +147,35 @@
     return Math.max(0, Number(width) || 0) * (mobile ? 3.15 / 4 : 9 / 16);
   }
 
+  function getNextCameraFacingMode(facingMode) {
+    return facingMode === "environment" ? "user" : "environment";
+  }
+
+  function shouldMirrorCamera(facingMode) {
+    return facingMode !== "environment";
+  }
+
+  function isLikelyPhoneDevice(userAgent = "", userAgentDataMobile) {
+    if (typeof userAgentDataMobile === "boolean") {
+      return userAgentDataMobile;
+    }
+
+    return /iPhone|iPod|Windows Phone|IEMobile|Opera Mini|Android.+Mobile/i.test(
+      String(userAgent)
+    );
+  }
+
   globalScope.PemiPetTracking = Object.freeze({
     calculateFrameCandidateScore,
     calculateLuminanceGradientSharpness,
     calculateResultFrameMinimumHeight,
     clamp,
     clampPointToFrame,
+    getNextCameraFacingMode,
     getLetterboxMetrics,
+    isLikelyPhoneDevice,
     mapNormalizedBoxToFrame,
-    normalizeModelBox
+    normalizeModelBox,
+    shouldMirrorCamera
   });
 })(globalThis);

@@ -136,6 +136,24 @@
                       <p id="waiting-message" aria-live="polite">The birds found your pet...</p>
                     </div>
                   </div>
+                  <button
+                    id="camera-switch-btn"
+                    class="camera-switch-button"
+                    type="button"
+                    aria-label="Switch to rear camera"
+                    title="Switch to rear camera"
+                    hidden
+                  >
+                    <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+                      <path d="M7.2 11.2A10.2 10.2 0 0 1 24 8.7" />
+                      <path d="m23.2 4.9.9 4.4-4.3.6" />
+                      <path d="M24.8 20.8A10.2 10.2 0 0 1 8 23.3" />
+                      <path d="m8.8 27.1-.9-4.4 4.3-.6" />
+                      <rect x="10" y="11.5" width="12" height="9" rx="2.4" />
+                      <circle cx="16" cy="16" r="2.5" />
+                    </svg>
+                  </button>
+                  <p id="camera-switch-status" class="visually-hidden" aria-live="polite"></p>
                 </div>
 
                 <section id="result" class="result result-frame" hidden aria-labelledby="result-title">
