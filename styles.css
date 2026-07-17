@@ -121,16 +121,16 @@ p {
 }
 
 .brand-mascot {
-  width: 58px;
-  height: 42px;
+  width: 90px;
+  height: 65px;
   overflow: hidden;
   display: block;
   filter: drop-shadow(0 6px 12px rgba(100, 38, 24, 0.16));
 }
 
 .brand-mascot img {
-  width: 58px;
-  height: 58px;
+  width: 90px;
+  height: 90px;
   display: block;
   object-fit: contain;
   object-position: center top;
@@ -1420,12 +1420,12 @@ h1 {
   }
 
   .mobile-brand-lockup .brand-mascot {
-    width: 48px;
-    height: 35px;
+    width: 110px;
+    height: 48px;
   }
 
   .mobile-brand-lockup .brand-mascot img {
-    width: 48px;
+    width: 110px;
     height: 48px;
   }
 
@@ -2583,13 +2583,13 @@ body {
 }
 
 .brand-mascot {
-  width: 60px;
-  height: 46px;
+  width: 140px;
+  height: 60px;
   filter: none;
 }
 
 .brand-mascot img {
-  width: 60px;
+  width: 140px;
   height: 60px;
 }
 
