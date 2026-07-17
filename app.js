@@ -24,6 +24,9 @@ const resultTitle = document.querySelector("#result-title");
 const resultCopy = document.querySelector("#result-copy");
 const resultMoodContainer = document.querySelector("#result-mood-container");
 const resultMoodValue = document.querySelector("#result-mood-value");
+const resultDistributionContainer = document.querySelector("#result-distribution-container");
+const resultDistributionSvg = document.querySelector("#result-distribution-svg");
+const resultDistributionLegend = document.querySelector("#result-distribution-legend");
 const cameraStage = document.querySelector(".camera-stage");
 const posterTriggers = Array.from(document.querySelectorAll("[data-poster]"));
 const posterDialog = document.querySelector("#poster-dialog");
@@ -481,6 +484,107 @@ function showResult() {
   }
 }
 
+function renderDistributionChart(distribution) {
+  if (!resultDistributionContainer || !resultDistributionSvg || !resultDistributionLegend) {
+    return;
+  }
+
+  // 1. Clear previous segments and legend
+  const bgCircle = resultDistributionSvg.querySelector(".donut-bg");
+  resultDistributionSvg.innerHTML = "";
+  if (bgCircle) {
+    resultDistributionSvg.appendChild(bgCircle);
+  } else {
+    // Recreate bg
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", "21");
+    circle.setAttribute("cy", "21");
+    circle.setAttribute("r", "15.91549430918954");
+    circle.setAttribute("class", "donut-bg");
+    circle.setAttribute("fill", "transparent");
+    circle.setAttribute("stroke", "#f5f1fc");
+    circle.setAttribute("stroke-width", "4.5");
+    resultDistributionSvg.appendChild(circle);
+  }
+  resultDistributionLegend.innerHTML = "";
+
+  if (!distribution || typeof distribution !== "object") {
+    resultDistributionContainer.hidden = true;
+    return;
+  }
+
+  const entries = Object.entries(distribution);
+  if (entries.length === 0) {
+    resultDistributionContainer.hidden = true;
+    return;
+  }
+
+  // Calculate sum to normalize (just in case they don't sum to exactly 1.0)
+  const sum = entries.reduce((acc, [_, val]) => acc + Number(val || 0), 0);
+  if (sum <= 0) {
+    resultDistributionContainer.hidden = true;
+    return;
+  }
+
+  // Color Mapping matching the brand design and moods
+  const emotionColors = {
+    happy: "#ef8d9d",       // var(--coral)
+    calm: "#8e6ccf",        // var(--violet)
+    surprised: "#ffe9a5",    // var(--yellow)
+    relaxed: "#ddf4e8",     // var(--mint)
+    trusting: "#ddefff",    // var(--sky)
+    affectionate: "#b86176" // Dark plum
+  };
+
+  function getColor(emotion) {
+    const norm = String(emotion || "").toLowerCase();
+    return emotionColors[norm] || "#796879"; // default slate gray
+  }
+
+  let cumulativePercent = 0;
+
+  entries.forEach(([emotion, val]) => {
+    const rawVal = Number(val || 0);
+    const percent = (rawVal / sum) * 100;
+    if (percent <= 0) return;
+
+    const color = getColor(emotion);
+
+    // 2. Add SVG donut segment
+    const segment = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    segment.setAttribute("cx", "21");
+    segment.setAttribute("cy", "21");
+    segment.setAttribute("r", "15.91549430918954");
+    segment.setAttribute("fill", "transparent");
+    segment.setAttribute("stroke", color);
+    segment.setAttribute("stroke-width", "4.5");
+    segment.setAttribute("stroke-dasharray", `${percent} ${100 - percent}`);
+    segment.setAttribute("stroke-dashoffset", String(-cumulativePercent));
+
+    resultDistributionSvg.appendChild(segment);
+
+    // 3. Add Legend item
+    const legendItem = document.createElement("div");
+    legendItem.className = "legend-item";
+    
+    const dot = document.createElement("span");
+    dot.className = "legend-dot";
+    dot.style.backgroundColor = color;
+
+    const text = document.createElement("span");
+    text.className = "legend-text";
+    text.textContent = `${emotion} ${Math.round(percent)}%`;
+
+    legendItem.appendChild(dot);
+    legendItem.appendChild(text);
+    resultDistributionLegend.appendChild(legendItem);
+
+    cumulativePercent += percent;
+  });
+
+  resultDistributionContainer.hidden = false;
+}
+
 function hideResult() {
   window.clearTimeout(resultRevealTimer);
   resultRevealTimer = null;
@@ -494,6 +598,9 @@ function hideResult() {
   }
   if (resultMoodValue) {
     resultMoodValue.textContent = "";
+  }
+  if (resultDistributionContainer) {
+    resultDistributionContainer.hidden = true;
   }
   resetResultFrameCapture();
 }
@@ -1902,6 +2009,13 @@ async function submitCurrentClip() {
       resultMoodContainer.hidden = false;
     } else if (resultMoodContainer) {
       resultMoodContainer.hidden = true;
+    }
+
+    // 渲染情绪分布图表 (Donut Ring Chart)
+    if (analysis && analysis.distribution) {
+      renderDistributionChart(analysis.distribution);
+    } else if (resultDistributionContainer) {
+      resultDistributionContainer.hidden = true;
     }
     
     currentVideoBlob = null;

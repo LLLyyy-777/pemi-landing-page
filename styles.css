@@ -3507,6 +3507,15 @@ body {
 }
 
 /* 结果卡片中宠物的心情/Mood 展示徽章：作为核心翻译结论、强化其主要展示属性 */
+.result-mood-row {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 5px;
+  margin-bottom: 12px;
+}
+
 .result-mood-container {
   display: inline-flex;
   align-items: center;
@@ -3515,8 +3524,7 @@ body {
   border: 2px solid var(--storybook-outline); /* 加粗边框使其立体 */
   border-radius: 99px;
   padding: 6px 14px;
-  margin-top: 5px;
-  margin-bottom: 12px;
+  margin: 0;
   font-family: var(--body);
   font-size: 0.85rem; /* 增大整体心情文字大小 */
   font-weight: 850;
@@ -3537,4 +3545,62 @@ body {
   font-weight: 950;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.result-distribution-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 2px solid var(--storybook-outline);
+  border-radius: 99px;
+  padding: 4px 14px 4px 8px; /* 偏左内边距给圆环预留极佳空间 */
+  box-shadow: 0 3px 0 rgba(79, 61, 82, 0.16);
+}
+
+.distribution-chart-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.distribution-chart {
+  width: 28px;
+  height: 28px;
+  transform: rotate(-90deg); /* 坐标旋转，让 0% 起点在正上方 12 点方向 */
+  transform-origin: center;
+}
+
+.donut-bg {
+  stroke: #f3effc;
+}
+
+.distribution-legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.legend-text {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-transform: capitalize;
 }

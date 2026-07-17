@@ -229,9 +229,19 @@
                       <p class="result-kicker">Pemi's playful translation</p>
                       <span aria-hidden="true">&ldquo;</span>
                     </div>
-                    <div id="result-mood-container" class="result-mood-container" hidden>
-                      <span class="result-mood-label">🐾 Mood:</span>
-                      <span id="result-mood-value" class="result-mood-value">Calm</span>
+                    <div class="result-mood-row">
+                      <div id="result-mood-container" class="result-mood-container" hidden>
+                        <span class="result-mood-label">🐾 Mood:</span>
+                        <span id="result-mood-value" class="result-mood-value">Calm</span>
+                      </div>
+                      <div id="result-distribution-container" class="result-distribution-container" hidden>
+                        <div class="distribution-chart-wrapper">
+                          <svg id="result-distribution-svg" viewBox="0 0 42 42" class="distribution-chart">
+                            <circle cx="21" cy="21" r="15.91549430918954" class="donut-bg" fill="transparent" stroke="#f5f1fc" stroke-width="4.5" />
+                          </svg>
+                        </div>
+                        <div id="result-distribution-legend" class="distribution-legend"></div>
+                      </div>
                     </div>
                     <h2 id="result-title">Listening closely...</h2>
                     <p id="result-copy"></p>

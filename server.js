@@ -587,16 +587,24 @@ function normalizeAlgorithmResult(payload) {
 
   // 提取宠物的心情，即 pet_emotion 中的 primary
   let primaryEmotion = "";
+  let distribution = null;
   if (Array.isArray(outputs?.pet_emotion) && outputs.pet_emotion.length > 0) {
     primaryEmotion = outputs.pet_emotion[0]?.primary || "";
+    distribution = outputs.pet_emotion[0]?.distribution || null;
   } else if (Array.isArray(payload?.pet_emotion) && payload.pet_emotion.length > 0) {
     primaryEmotion = payload.pet_emotion[0]?.primary || "";
+    distribution = payload.pet_emotion[0]?.distribution || null;
+  } else if (outputs?.distribution && typeof outputs.distribution === "object") {
+    distribution = outputs.distribution;
+  } else if (payload?.distribution && typeof payload.distribution === "object") {
+    distribution = payload.distribution;
   }
 
   return {
     title: String(title),
     copy: String(copy),
-    mood: String(primaryEmotion || "")
+    mood: String(primaryEmotion || ""),
+    distribution: distribution
   };
 }
 
@@ -824,7 +832,12 @@ async function waitForAlgorithmResult(taskId) {
 function getMockAnalysis(videoUrl) {
   return {
     title: "\"I have thoughts. Many snack-related thoughts.\"",
-    copy: `Pemi received the 5-second clip and generated a test video URL successfully: ${videoUrl}. Connect ALGORITHM_CREATE_URL when the algorithm service is ready.`
+    copy: `Pemi received the 5-second clip and generated a test video URL successfully. Connect ALGORITHM_CREATE_URL when the algorithm service is ready.`,
+    mood: "Happy",
+    distribution: {
+      "Happy": 0.7,
+      "Calm": 0.3
+    }
   };
 }
 
