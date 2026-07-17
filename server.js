@@ -553,14 +553,21 @@ async function convertWebmUrlToMp4(videoUrl) {
 
 function normalizeAlgorithmResult(payload) {
   const result = payload?.result && typeof payload.result === "object" ? payload.result : {};
+  const outputs = payload?.outputs || result?.outputs || result || {};
+
   const title =
+    outputs?.title ||
     payload?.title ||
     result.title ||
     payload?.mood ||
     payload?.label ||
     payload?.emotion ||
     "Pemi's reading";
+
   const copy =
+    outputs?.comment ||
+    outputs?.suggestion ||
+    outputs?.pet_behavior ||
     payload?.copy ||
     payload?.text ||
     payload?.message ||
@@ -578,9 +585,18 @@ function normalizeAlgorithmResult(payload) {
     throw new Error("Algorithm response did not include readable analysis text.");
   }
 
+  // 提取宠物的心情，即 pet_emotion 中的 primary
+  let primaryEmotion = "";
+  if (Array.isArray(outputs?.pet_emotion) && outputs.pet_emotion.length > 0) {
+    primaryEmotion = outputs.pet_emotion[0]?.primary || "";
+  } else if (Array.isArray(payload?.pet_emotion) && payload.pet_emotion.length > 0) {
+    primaryEmotion = payload.pet_emotion[0]?.primary || "";
+  }
+
   return {
     title: String(title),
-    copy: String(copy)
+    copy: String(copy),
+    mood: String(primaryEmotion || "")
   };
 }
 

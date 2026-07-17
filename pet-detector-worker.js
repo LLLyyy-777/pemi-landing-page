@@ -16,9 +16,18 @@ function postError(error, requestId) {
 }
 
 async function initializeDetector({ modelUrl, runtimeUrl, trackingUtilsUrl, wasmRoot }) {
-  self.importScripts(trackingUtilsUrl, runtimeUrl);
+  console.log("Worker: initializeDetector started. modelUrl:", modelUrl, "runtimeUrl:", runtimeUrl, "trackingUtilsUrl:", trackingUtilsUrl);
+  
+  try {
+    self.importScripts(trackingUtilsUrl, runtimeUrl);
+    console.log("Worker: self.importScripts completed successfully.");
+  } catch (err) {
+    console.error("Worker: self.importScripts failed!", err);
+    throw err;
+  }
 
   if (!self.ort || !self.PemiPetTracking) {
+    console.error("Worker: self.ort or self.PemiPetTracking check failed. self.ort exists:", !!self.ort, "self.PemiPetTracking exists:", !!self.PemiPetTracking);
     throw new Error("ONNX Runtime did not load.");
   }
 
@@ -27,21 +36,38 @@ async function initializeDetector({ modelUrl, runtimeUrl, trackingUtilsUrl, wasm
     wasm: `${wasmRoot}ort-wasm-simd-threaded.jsep.wasm`
   };
   self.ort.env.wasm.numThreads = 1;
+  console.log("Worker: setup env.wasm.wasmPaths as:", JSON.stringify(self.ort.env.wasm.wasmPaths));
 
-  session = await self.ort.InferenceSession.create(modelUrl, {
-    executionProviders: ["wasm"],
-    graphOptimizationLevel: "all"
-  });
+  try {
+    console.log("Worker: Starting self.ort.InferenceSession.create with Model URL:", modelUrl);
+    const createStart = performance.now();
+    session = await self.ort.InferenceSession.create(modelUrl, {
+      executionProviders: ["wasm"],
+      graphOptimizationLevel: "all"
+    });
+    console.log(`Worker: InferenceSession loaded successfully in ${(performance.now() - createStart).toFixed(1)}ms.`);
+  } catch (err) {
+    console.error("Worker: InferenceSession.create threw error! This is usually because WebAssembly compile or memory settings failed in this browser environment.", err);
+    throw err;
+  }
 
   inputName = session.inputNames[0] || inputName;
   outputName = session.outputNames[0] || outputName;
-  canvas = new OffscreenCanvas(MODEL_SIZE, MODEL_SIZE);
-  context = canvas.getContext("2d", { willReadFrequently: true });
+  
+  try {
+    canvas = new OffscreenCanvas(MODEL_SIZE, MODEL_SIZE);
+    context = canvas.getContext("2d", { willReadFrequently: true });
+    console.log("Worker: OffscreenCanvas and 2D context prepared successfully.");
+  } catch (err) {
+    console.error("Worker: OffscreenCanvas or 2D context creation failed!", err);
+    throw err;
+  }
 
   if (!context) {
     throw new Error("The browser could not prepare the pet detector canvas.");
   }
 
+  console.log("Worker: initializeDetector completed. Sending 'ready' message.");
   self.postMessage({ type: "ready" });
 }
 
@@ -118,23 +144,43 @@ function findBestPet(output, confidenceThreshold, minimumAreaRatio, metrics) {
 
 async function detectPet({ frame, requestId, confidenceThreshold, minimumAreaRatio }) {
   if (!session || !context) {
+    console.error("Worker: detectPet called but session or context is null.");
     throw new Error("Pet detector is not ready.");
   }
 
+  const startTotal = performance.now();
   try {
     const prepared = prepareInput(frame);
+    const startRun = performance.now();
     const outputs = await session.run({ [inputName]: prepared.input });
+    const runDuration = performance.now() - startRun;
+
     const output = outputs[outputName] || outputs[session.outputNames[0]];
 
     if (!output) {
       throw new Error("The pet detector returned no results.");
     }
 
+    const startFind = performance.now();
+    const pet = findBestPet(output, confidenceThreshold, minimumAreaRatio, prepared.metrics);
+    const findDuration = performance.now() - startFind;
+
+    const totalDuration = performance.now() - startTotal;
+
+    if (pet) {
+      console.log(`Worker: Pet found! Label: "${pet.label}", Confidence: ${pet.confidence.toFixed(2)}, ratio: ${pet.areaRatio.toFixed(3)}. Infer: ${runDuration.toFixed(1)}ms, Find: ${findDuration.toFixed(1)}ms, Total: ${totalDuration.toFixed(1)}ms`);
+    } else {
+      console.log(`Worker: Inference complete (${runDuration.toFixed(1)}ms), but no cat/dog matched. Confidence filter: ${confidenceThreshold}`);
+    }
+
     self.postMessage({
       type: "detection",
       requestId,
-      pet: findBestPet(output, confidenceThreshold, minimumAreaRatio, prepared.metrics)
+      pet: pet
     });
+  } catch (err) {
+    console.error("Worker: detectPet failed during frame processing or session run!", err);
+    throw err;
   } finally {
     frame.close();
   }

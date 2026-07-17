@@ -11,6 +11,8 @@ const detectionPromptTitle = document.querySelector("#detection-prompt-title");
 const detectionPromptCopy = document.querySelector("#detection-prompt-copy");
 const waitingOverlay = document.querySelector("#waiting-overlay");
 const waitingMessage = document.querySelector("#waiting-message");
+const knowledgeCards = document.querySelector("#knowledge-cards");
+const knowledgeCardButtons = Array.from(document.querySelectorAll(".knowledge-card"));
 const statusText = document.querySelector("#status-text");
 const startButton = document.querySelector("#start-btn");
 const retryButton = document.querySelector("#retry-btn");
@@ -20,6 +22,8 @@ const result = document.querySelector("#result");
 const resultSnapshot = document.querySelector("#result-snapshot");
 const resultTitle = document.querySelector("#result-title");
 const resultCopy = document.querySelector("#result-copy");
+const resultMoodContainer = document.querySelector("#result-mood-container");
+const resultMoodValue = document.querySelector("#result-mood-value");
 const cameraStage = document.querySelector(".camera-stage");
 const posterTriggers = Array.from(document.querySelectorAll("[data-poster]"));
 const posterDialog = document.querySelector("#poster-dialog");
@@ -49,6 +53,60 @@ const ANALYSIS_WAITING_MESSAGES = [
   "The birds are following every little clue...",
   "Turning posture and expression into pet-to-human..."
 ];
+const PET_KNOWLEDGE = {
+  dog: [
+    {
+      title: "A wagging tail is not always happy",
+      copy: "Tail height, speed, and the rest of the body tell the full story. A relaxed body matters more than the wag alone."
+    },
+    {
+      title: "Yawning can mean calm",
+      copy: "Dogs may yawn when they feel excited or unsure, not only when they are sleepy. A little space can help them settle."
+    },
+    {
+      title: "A dry nose is not a diagnosis",
+      copy: "A nose can feel dry after a nap, sunbathing, or in dry weather. Overall behavior is a better clue than nose moisture."
+    },
+    {
+      title: "Dogs read your voice",
+      copy: "Dogs often respond to your tone as much as your words. A warm, steady voice can make a new situation feel safer."
+    },
+    {
+      title: "Sniffing is serious work",
+      copy: "Sniffing helps dogs gather information about their surroundings. A slow sniffing walk can be great mental exercise."
+    },
+    {
+      title: "The play bow is an invitation",
+      copy: "Front legs down with the rear up is often a playful hello. Look for a loose body and happy movement around it."
+    }
+  ],
+  cat: [
+    {
+      title: "Slow blinks can mean trust",
+      copy: "A slow blink often shows that a cat feels relaxed around you. Try a slow blink back as a friendly hello."
+    },
+    {
+      title: "Watch the tip of the tail",
+      copy: "A tiny tail-tip twitch can mean focused attention. Give your cat time to decide what happens next."
+    },
+    {
+      title: "Purring is not always joy",
+      copy: "Purring often happens during contentment, but cats may also purr to soothe themselves. Read the whole body and context."
+    },
+    {
+      title: "Whiskers show attention",
+      copy: "Whiskers naturally point forward when a cat is curious and may pull back when it feels worried. Keep the whole posture in mind."
+    },
+    {
+      title: "A raised tail is a hello",
+      copy: "A relaxed, upright tail is commonly a friendly greeting. A puffed-up tail tells a very different story."
+    },
+    {
+      title: "Kneading comes from kittenhood",
+      copy: "Many cats knead soft places when they feel comfortable. It is a leftover soothing behavior from nursing as kittens."
+    }
+  ]
+};
 const BIRD_PERIODS_MS = [5200, 6100, 6900];
 const BIRD_PHASES = [-Math.PI / 2, Math.PI / 6, (5 * Math.PI) / 6];
 const RESULT_FRAME_SAMPLE_SIZE = 96;
@@ -67,8 +125,8 @@ const STATES = {
 
 let appState = STATES.IDLE;
 let stream = null;
-let preferredCameraFacingMode = "user";
-let activeCameraFacingMode = "user";
+let preferredCameraFacingMode = "environment";
+let activeCameraFacingMode = "environment";
 let phoneCameraUiEnabled = false;
 let cameraSwitchAvailable = null;
 let isSwitchingCamera = false;
@@ -88,6 +146,7 @@ let detectionRequestSequence = 0;
 let activeDetectionRequestId = null;
 let detectionHistory = [];
 let currentVideoBlob = null;
+let currentPetType = null;
 let waitingMessageTimer = null;
 let currentPosterIndex = 0;
 let birdAnimationFrame = null;
@@ -103,6 +162,7 @@ let reducedMotionQuery = null;
 let resultRevealTimer = null;
 let collectingResultFrames = false;
 let resultSnapshotReady = false;
+let firstFrameCaptured = false;
 let bestResultFrameScore = Number.NEGATIVE_INFINITY;
 let pendingResultFrameRequestId = null;
 const pendingResultFrame = document.createElement("canvas");
@@ -147,7 +207,9 @@ function syncCameraPresentation() {
 }
 
 function isCameraSwitchAllowedState() {
-  return [STATES.LOADING_MODEL, STATES.SEARCHING, STATES.ANALYZING, STATES.ERROR].includes(
+  // 只在加载模型、搜索查找宠物阶段提供镜头翻转按钮。
+  // 在录制阶段 (RECORDING) 与等待深度解读分析阶段 (ANALYZING) 移除按钮，防止发生遮挡
+  return [STATES.LOADING_MODEL, STATES.SEARCHING, STATES.ERROR].includes(
     appState
   );
 }
@@ -178,6 +240,16 @@ function setAppState(nextState) {
     detectionPrompt.hidden = true;
   }
 
+  // 根据当前状态显示或隐藏模型加载中的磨砂遮罩
+  const overlay = document.querySelector("#model-loading-overlay");
+  if (overlay) {
+    if (nextState === STATES.LOADING_MODEL) {
+      overlay.removeAttribute("hidden");
+    } else {
+      overlay.setAttribute("hidden", "");
+    }
+  }
+
   refreshControls();
 }
 
@@ -203,6 +275,7 @@ function clearCanvas(targetCanvas) {
 
 function resetResultFrameCapture({ clearSnapshot = true } = {}) {
   collectingResultFrames = false;
+  firstFrameCaptured = false;
   bestResultFrameScore = Number.NEGATIVE_INFINITY;
   pendingResultFrameRequestId = null;
   clearCanvas(pendingResultFrame);
@@ -273,6 +346,16 @@ function captureFallbackResultFrame() {
 function beginResultFrameCollection() {
   resetResultFrameCapture();
   collectingResultFrames = true;
+
+  // 捕获视频的第一帧作为结果展示图片
+  const firstFrame = document.createElement("canvas");
+  if (drawCameraFrame(firstFrame)) {
+    saveResultFrame(firstFrame);
+    firstFrameCaptured = true;
+    console.log("First frame of video captured successfully at the start of recording.");
+  } else {
+    console.warn("Could not capture first frame immediately; will capture next available active frame.");
+  }
 }
 
 function finishResultFrameCollection() {
@@ -283,6 +366,16 @@ function finishResultFrameCollection() {
 function capturePendingResultFrame(requestId) {
   if (!collectingResultFrames || appState !== STATES.RECORDING) {
     return;
+  }
+
+  // 如果未能在大底启动时成功捕获首帧，在后续任一活跃帧中进行重试并锁定为首帧展示
+  if (!firstFrameCaptured) {
+    const backupFirstFrame = document.createElement("canvas");
+    if (drawCameraFrame(backupFirstFrame)) {
+      saveResultFrame(backupFirstFrame);
+      firstFrameCaptured = true;
+      console.log("First frame of video captured on active frame callback.");
+    }
   }
 
   if (drawCameraFrame(pendingResultFrame)) {
@@ -349,7 +442,8 @@ function scorePendingResultFrame(pet, requestId) {
 
   if (score > bestResultFrameScore) {
     bestResultFrameScore = score;
-    saveResultFrame(pendingResultFrame);
+    // 结果展示图片已规定为视频第一帧，此评分阶段不再覆盖已被捕获的视频首帧
+    // saveResultFrame(pendingResultFrame);
   }
 
   clearCanvas(pendingResultFrame);
@@ -395,7 +489,92 @@ function hideResult() {
   result.hidden = true;
   resultTitle.textContent = "Listening closely...";
   resultCopy.textContent = "";
+  if (resultMoodContainer) {
+    resultMoodContainer.hidden = true;
+  }
+  if (resultMoodValue) {
+    resultMoodValue.textContent = "";
+  }
   resetResultFrameCapture();
+}
+
+function hideKnowledgeCards() {
+  knowledgeCards.hidden = true;
+  knowledgeCardButtons.forEach((card) => {
+    card.classList.remove("is-flipped");
+    card.setAttribute("aria-pressed", "false");
+  });
+}
+
+function showKnowledgeCards(petType) {
+  const availableCards = PET_KNOWLEDGE[petType] || PET_KNOWLEDGE.dog;
+  const cards = [...availableCards]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, knowledgeCardButtons.length);
+
+  knowledgeCardButtons.forEach((card, index) => {
+    const knowledge = cards[index];
+    card.querySelector(".knowledge-card-title").textContent = knowledge.title;
+    card.querySelector(".knowledge-card-copy").textContent = knowledge.copy;
+    card.classList.remove("is-flipped");
+    card.setAttribute("aria-pressed", "false");
+  });
+
+  knowledgeCards.hidden = false;
+}
+
+function wireKnowledgeCards() {
+  const knowledgeDialog = document.querySelector("#knowledge-dialog");
+  const knowledgeDialogTitle = document.querySelector("#knowledge-dialog-title");
+  const knowledgeDialogCopy = document.querySelector("#knowledge-dialog-copy");
+  const knowledgeDialogClose = document.querySelector("#knowledge-dialog-close");
+
+  knowledgeCardButtons.forEach((card) => {
+    card.addEventListener("click", () => {
+      // 触发翻转样式
+      const isFlipped = card.classList.toggle("is-flipped");
+      card.setAttribute("aria-pressed", String(isFlipped));
+
+      // 在移动端或小屏上，直接打开放大弹窗
+      // 用户反映"现在卡片样式不变，但用户点击卡片后出现一个放大的卡片，能够显示全文字，用户再次点击卡片或者卡片外部，卡片自动缩放回原始大小和位置"
+      // 我们可以让手机/桌面下，点击都能优雅地弹窗并以过渡效果铺满，这样文字才能100%看全。
+      const title = card.querySelector(".knowledge-card-title").textContent;
+      const copy = card.querySelector(".knowledge-card-copy").textContent;
+
+      if (knowledgeDialog && knowledgeDialogTitle && knowledgeDialogCopy) {
+        knowledgeDialogTitle.textContent = title;
+        knowledgeDialogCopy.textContent = copy;
+
+        // 打开 dialog
+        knowledgeDialog.showModal();
+        knowledgeDialog.classList.add("is-visible");
+      }
+    });
+  });
+
+  if (knowledgeDialog) {
+    // 再次点击卡片或点击卡片外部，自动缩放回
+    knowledgeDialog.addEventListener("click", (e) => {
+      // 如果点击的是 dialog 本身（即背景层 backdrop）
+      if (e.target === knowledgeDialog) {
+        closeKnowledgeDialog();
+      }
+    });
+
+    if (knowledgeDialogClose) {
+      knowledgeDialogClose.addEventListener("click", () => {
+        closeKnowledgeDialog();
+      });
+    }
+  }
+
+  function closeKnowledgeDialog() {
+    knowledgeDialog.classList.remove("is-visible");
+    // 等待缩放和淡出动画完成后再 close
+    setTimeout(() => {
+      knowledgeDialog.close();
+    }, 200);
+  }
 }
 
 function updateWaitingMessage(message) {
@@ -421,6 +600,7 @@ function showAnalysisWaitingMessages() {
 
 function hideWaitingOverlay() {
   waitingOverlay.hidden = true;
+  hideKnowledgeCards();
   window.clearInterval(waitingMessageTimer);
   waitingMessageTimer = null;
 }
@@ -824,6 +1004,10 @@ function handleDetection(pet, requestId) {
 
   updateBirdTracking(pet);
 
+  if (pet?.label) {
+    currentPetType = pet.label;
+  }
+
   if (resumeBirdsAfterCameraSwitch && appState === STATES.ANALYZING && pet?.box) {
     resumeBirdsAfterCameraSwitch = false;
     activateBirdPlayground();
@@ -885,7 +1069,7 @@ async function initializeMainThreadDetector(workerError) {
     return mainDetectorInitialization;
   }
 
-  console.warn("Worker pet detector unavailable; switching to browser fallback.", workerError);
+  console.warn("Worker pet detector unavailable; switching to browser main thread fallback.", workerError);
   detectorReady = false;
   detectorFallback = false;
   detectorMode = "main-loading";
@@ -898,16 +1082,25 @@ async function initializeMainThreadDetector(workerError) {
 
   mainDetectorInitialization = (async () => {
     try {
+      console.log("Main Thread: Loading ONNX Runtime script (/vendor/ort.min.js)...");
       const ort = await loadOnnxRuntime();
+      console.log("Main Thread: ONNX Runtime script loaded successfully.");
+      
       ort.env.wasm.wasmPaths = {
         mjs: "/vendor/ort-wasm-simd-threaded.jsep.js",
         wasm: "/vendor/ort-wasm-simd-threaded.jsep.wasm"
       };
       ort.env.wasm.numThreads = 1;
+      console.log("Main Thread: setup env.wasm.wasmPaths as:", JSON.stringify(ort.env.wasm.wasmPaths));
+
+      console.log("Main Thread: Creating InferenceSession for /yolo26n.onnx ...");
+      const startCreate = performance.now();
       mainDetectorSession = await ort.InferenceSession.create("/yolo26n.onnx", {
         executionProviders: ["wasm"],
         graphOptimizationLevel: "all"
       });
+      console.log(`Main Thread: InferenceSession loaded successfully in ${(performance.now() - startCreate).toFixed(1)}ms.`);
+      
       detectorMode = "main";
       detectorReady = true;
       detectorFallback = false;
@@ -945,21 +1138,34 @@ function handleDetectorFailure(error) {
 }
 
 function initializeDetector() {
+  console.log("Initializing Worker Pet Detector. Posting init config payload...");
   detectorReady = false;
   detectorFallback = false;
   mainDetectorSession = null;
   mainDetectorInitialization = null;
 
   if (!window.Worker || !window.createImageBitmap) {
+    console.warn("Web Worker or createImageBitmap is not supported in this browser. Falling back to Main Thread detector.");
     detectorMode = null;
     initializeMainThreadDetector(new Error("Web Worker camera frames are unavailable."));
     return;
   }
 
   detectorMode = "worker";
-  detectorWorker = new Worker("/pet-detector-worker.js");
+  
+  try {
+    detectorWorker = new Worker("/pet-detector-worker.js");
+  } catch (err) {
+    console.error("Failed to create Web Worker: /pet-detector-worker.js", err);
+    initializeMainThreadDetector(err);
+    return;
+  }
+
   detectorWorker.addEventListener("message", (event) => {
+
+
     if (event.data?.type === "ready") {
+      console.log("Worker reported: initialization finished gracefully (READY).");
       detectorReady = true;
       detectorFallback = false;
       detectorMode = "worker";
@@ -982,6 +1188,7 @@ function initializeDetector() {
     }
 
     if (event.data?.type === "error") {
+      console.error("Worker reported error status:", event.data.message);
       if (
         event.data.requestId !== undefined &&
         event.data.requestId !== activeDetectionRequestId
@@ -996,6 +1203,7 @@ function initializeDetector() {
     }
   });
   detectorWorker.addEventListener("error", (event) => {
+    console.error("Worker process error triggered:", event.message || "Pet detector worker failed.");
     scorePendingResultFrame(null, activeDetectionRequestId);
     detectionInFlight = false;
     activeDetectionRequestId = null;
@@ -1016,6 +1224,7 @@ function beginSearching() {
   deactivateBirdPlayground({ immediate: true });
   resumeBirdsAfterCameraSwitch = false;
   currentVideoBlob = null;
+  currentPetType = null;
   resetDetectionHistory();
 
   if (!window.MediaRecorder) {
@@ -1087,7 +1296,16 @@ function createUnavailableCameraError() {
 }
 
 async function requestCameraStream(facingMode, exact = false) {
-  return navigator.mediaDevices.getUserMedia(createCameraConstraints(facingMode, exact));
+  const constraints = createCameraConstraints(facingMode, exact);
+  console.log(`Requesting camera stream. Constraints: ${JSON.stringify(constraints)} (facingMode: ${facingMode}, exact: ${exact})`);
+  try {
+    const resStream = await navigator.mediaDevices.getUserMedia(constraints);
+    console.log("Successfully acquired camera stream ID:", resStream.id);
+    return resStream;
+  } catch (err) {
+    console.error(`Failed to acquire camera stream with error name: "${err.name}", message: "${err.message}"`);
+    throw err;
+  }
 }
 
 function ensureCameraStreamChanged(targetStream, targetFacingMode, previousDeviceId) {
@@ -1123,15 +1341,24 @@ async function requestCameraForSwitch(targetFacingMode, previousDeviceId) {
 
 async function connectCameraStream(nextStream, requestedFacingMode, operationId) {
   if (operationId !== cameraOperationSequence) {
+    console.warn("connectCameraStream aborted: operationId mismatch.");
     releaseMediaStream(nextStream);
     return false;
   }
 
   stream = nextStream;
   camera.srcObject = nextStream;
-  await camera.play().catch(() => undefined);
+  
+  console.log("Connecting camera stream, waiting for camera.play()...");
+  try {
+    await camera.play();
+    console.log("camera.play() completed successfully. Dimensions:", camera.videoWidth, "x", camera.videoHeight);
+  } catch (err) {
+    console.warn("camera.play() failed or was interrupted:", err);
+  }
 
   if (operationId !== cameraOperationSequence || stream !== nextStream) {
+    console.warn("connectCameraStream connection aborted after camera play check.");
     releaseMediaStream(nextStream);
 
     if (camera.srcObject === nextStream) {
@@ -1141,7 +1368,24 @@ async function connectCameraStream(nextStream, requestedFacingMode, operationId)
     return false;
   }
 
+  const videoTrack = nextStream.getVideoTracks()[0];
+  if (videoTrack) {
+    console.log(`Successfully active video track label: "${videoTrack.label}"`);
+    try {
+      const settings = videoTrack.getSettings?.() || {};
+      console.log("Active video track Settings:", JSON.stringify(settings));
+      if (videoTrack.getCapabilities) {
+        console.log("Active video track Capabilities:", JSON.stringify(videoTrack.getCapabilities() || {}));
+      }
+    } catch (e) {
+      console.warn("Could not read stream track settings/capabilities:", e);
+    }
+  } else {
+    console.warn("No video track found in the returned media stream.");
+  }
+
   activeCameraFacingMode = getReportedFacingMode(nextStream, requestedFacingMode);
+  console.log(`Set activeCameraFacingMode to "${activeCameraFacingMode}" (requested: "${requestedFacingMode}")`);
   emptyState.hidden = true;
   syncCameraPresentation();
   const generation = ++cameraStreamGeneration;
@@ -1156,6 +1400,7 @@ async function connectCameraStream(nextStream, requestedFacingMode, operationId)
         return;
       }
 
+      console.warn("Camera video track ended stream signal received.");
       stopCamera();
       setStatus("The camera stopped. Open it again when your pet is ready.");
     },
@@ -1229,6 +1474,8 @@ async function switchCamera() {
   const previousPreferredFacingMode = preferredCameraFacingMode;
   const previousDeviceId = getStreamVideoSettings(previousStream).deviceId;
   const targetFacingMode = petTracking.getNextCameraFacingMode(previousFacingMode);
+  
+  console.log(`switchCamera: User triggered camera switch. previousFacingMode=${previousFacingMode}, targetFacingMode=${targetFacingMode}`);
   const operationId = ++cameraOperationSequence;
   let nextStream = null;
 
@@ -1250,6 +1497,7 @@ async function switchCamera() {
     nextStream = await requestCameraForSwitch(targetFacingMode, previousDeviceId);
 
     if (!(await connectCameraStream(nextStream, targetFacingMode, operationId))) {
+      console.warn("switchCamera: connectCameraStream returned false; switch operation might have been cancelled.");
       return;
     }
 
@@ -1257,6 +1505,7 @@ async function switchCamera() {
     await refreshCameraSwitchAvailability();
 
     if (operationId !== cameraOperationSequence) {
+      console.warn("switchCamera: operationId outdated during switch camera execution.");
       return;
     }
 
@@ -1268,6 +1517,7 @@ async function switchCamera() {
     );
     restoreLiveCameraPhase(previousState);
   } catch (error) {
+    console.error("switchCamera error encountered:", error);
     if (operationId !== cameraOperationSequence) {
       releaseMediaStream(nextStream);
       return;
@@ -1282,6 +1532,7 @@ async function switchCamera() {
     let restored = false;
 
     try {
+      console.log(`switchCamera: Attempting to restore the previous camera facingMode: ${previousFacingMode}`);
       const restoredStream = await requestCameraStream(previousFacingMode);
       restored = await connectCameraStream(restoredStream, previousFacingMode, operationId);
     } catch (restoreError) {
@@ -1644,6 +1895,15 @@ async function submitCurrentClip() {
     const analysis = await analyzePet(currentVideoBlob);
     resultTitle.textContent = analysis.title;
     resultCopy.textContent = analysis.copy;
+    
+    // 给用户展示宠物的心情，也就是 pet_emotion 中的 primary
+    if (analysis && analysis.mood && resultMoodContainer && resultMoodValue) {
+      resultMoodValue.textContent = analysis.mood;
+      resultMoodContainer.hidden = false;
+    } else if (resultMoodContainer) {
+      resultMoodContainer.hidden = true;
+    }
+    
     currentVideoBlob = null;
     hideWaitingOverlay();
     stopDetectionLoop();
@@ -1674,6 +1934,7 @@ async function runNewAnalysis() {
   setAppState(STATES.RECORDING);
   petGuide.hidden = true;
   activateBirdPlayground();
+  showKnowledgeCards(currentPetType);
   showWaitingOverlay("The birds found your pet — getting ready...");
   setStatus("Pemi found your pet. Keep that little face comfortably in frame...");
   scheduleDetection(0);
@@ -1806,7 +2067,25 @@ function isCameraContextAllowed() {
 }
 
 function boot() {
+  console.log("Pemi system boot sequence initiated.");
+  console.log("Navigator details:", JSON.stringify({
+    userAgent: navigator.userAgent,
+    language: navigator.language,
+    hardwareConcurrency: navigator.hardwareConcurrency,
+    deviceMemory: navigator.deviceMemory || "unknown"
+  }));
+  console.log("Support signals:", JSON.stringify({
+    isSecureContext: window.isSecureContext,
+    hasMediaDevices: !!navigator.mediaDevices,
+    hasGetUserMedia: !!navigator.mediaDevices?.getUserMedia,
+    hasWorker: typeof window.Worker !== "undefined",
+    hasCreateImageBitmap: typeof window.createImageBitmap !== "undefined",
+    hasOffscreenCanvas: typeof window.OffscreenCanvas !== "undefined",
+    hasMediaRecorder: typeof window.MediaRecorder !== "undefined"
+  }));
+
   wirePosterViewer();
+  wireKnowledgeCards();
   petGuide.hidden = true;
   birdPlayground.hidden = true;
   detectionPrompt.hidden = true;
@@ -1814,6 +2093,7 @@ function boot() {
   reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
   if (!petTracking) {
+    console.error("Critical error: PemiPetTracking library was not loaded properly.");
     startButton.disabled = true;
     setStatus("Pemi's pet tracker could not start. Refresh the page to try again.");
     return;
@@ -1823,16 +2103,19 @@ function boot() {
     navigator.userAgent,
     navigator.userAgentData?.mobile
   );
+  console.log("Device detection: isLikelyPhone =", phoneCameraUiEnabled);
   document.documentElement.classList.toggle("is-phone-device", phoneCameraUiEnabled);
   syncCameraPresentation();
 
   if (!isCameraContextAllowed()) {
+    console.warn("Security policy warning: Context is not secure (requires HTTPS or localhost).");
     startButton.disabled = true;
     setStatus("Camera access needs HTTPS. Open this page on a secure Pemi link.");
     return;
   }
 
   if (!navigator.mediaDevices?.getUserMedia) {
+    console.error("Incompatible API error: navigator.mediaDevices.getUserMedia is unavailable in this environment.");
     startButton.disabled = true;
     setStatus("This browser cannot open the camera. Try the latest Safari, Chrome, or Edge.");
     return;

@@ -480,7 +480,7 @@ h1 {
   height: 100%;
   display: block;
   object-fit: cover;
-  transform: scaleX(-1);
+  transform: none;
   background: #17211f;
 }
 
@@ -737,8 +737,15 @@ h1 {
   padding: 18px;
   color: #fff;
   background: linear-gradient(to bottom, transparent 58%, rgba(26, 31, 29, 0.46));
-  pointer-events: none;
+  pointer-events: auto;
   text-align: center;
+}
+
+.waiting-content {
+  width: min(560px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
 }
 
 .waiting-status {
@@ -754,6 +761,156 @@ h1 {
   background: rgba(29, 34, 32, 0.68);
   box-shadow: 0 8px 24px rgba(18, 24, 22, 0.22);
   backdrop-filter: blur(7px);
+}
+
+.knowledge-cards {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  background: rgba(29, 34, 32, 0.78);
+  box-shadow: 0 12px 30px rgba(18, 24, 22, 0.25);
+  backdrop-filter: blur(9px);
+}
+
+.knowledge-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+  text-align: left;
+}
+
+.knowledge-heading p,
+.knowledge-heading small {
+  margin: 0;
+}
+
+.knowledge-heading p {
+  color: #fff;
+  font-family: var(--display);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.knowledge-heading small {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.knowledge-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.knowledge-card {
+  min-width: 0;
+  height: 112px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+  perspective: 700px;
+  text-align: left;
+}
+
+.knowledge-card:focus-visible {
+  outline: 3px solid var(--sky);
+  outline-offset: 3px;
+}
+
+.knowledge-card-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: block;
+  transform-style: preserve-3d;
+  transition: transform 420ms cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+
+.knowledge-card.is-flipped .knowledge-card-inner {
+  transform: rotateY(180deg);
+}
+
+.knowledge-card-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 10px;
+  padding: 10px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.knowledge-card-front {
+  align-items: center;
+  color: #fff;
+  background: linear-gradient(145deg, var(--violet), var(--violet-dark));
+  text-align: center;
+}
+
+.knowledge-card-back {
+  color: var(--ink);
+  background: var(--paper);
+  transform: rotateY(180deg);
+}
+
+.knowledge-card-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  color: var(--yellow);
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.knowledge-card-label {
+  color: inherit;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  opacity: 0.72;
+  text-transform: uppercase;
+}
+
+.knowledge-card-question {
+  margin-top: 5px;
+  font-family: var(--display);
+  font-size: 0.72rem;
+  line-height: 1.15;
+}
+
+.knowledge-card-title {
+  margin-top: 5px;
+  font-family: var(--display);
+  font-size: 0.72rem;
+  line-height: 1.15;
+}
+
+.knowledge-card-copy {
+  display: -webkit-box;
+  margin-top: 5px;
+  overflow: hidden;
+  font-size: 0.61rem;
+  font-weight: 650;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
 }
 
 .waiting-status-birds {
@@ -918,8 +1075,8 @@ h1 {
   margin: 0;
   color: var(--ink);
   font-family: var(--display);
-  font-size: clamp(1.18rem, 2.2vw, 1.7rem);
-  line-height: 1.12;
+  font-size: clamp(0.95rem, 1.8vw, 1.3rem); /* 缩小 title 尺寸，增加呼吸空间 */
+  line-height: 1.15;
 }
 
 .result-copy-area > p {
@@ -1390,7 +1547,7 @@ h1 {
   }
 
   .result-copy-area h2 {
-    font-size: clamp(1.02rem, 5vw, 1.28rem);
+    font-size: clamp(0.85rem, 4vw, 1.05rem); /* 在移动端小屏幕上也同步缩减 title */
   }
 
   .result-copy-area > p {
@@ -1437,6 +1594,10 @@ h1 {
     padding: 12px;
   }
 
+  .waiting-content {
+    gap: 8px;
+  }
+
   .waiting-status {
     width: calc(100% - 4px);
     min-height: 40px;
@@ -1445,6 +1606,36 @@ h1 {
 
   .waiting-overlay p {
     font-size: 0.8rem;
+  }
+
+  .knowledge-cards {
+    padding: 8px;
+    border-radius: 12px;
+  }
+
+  .knowledge-heading {
+    display: block;
+  }
+
+  .knowledge-heading small {
+    display: block;
+    margin-top: 2px;
+  }
+
+  .knowledge-card-grid {
+    gap: 5px;
+  }
+
+  .knowledge-card {
+    height: 105px;
+  }
+
+  .knowledge-card-face {
+    padding: 7px;
+  }
+
+  .knowledge-card-copy {
+    font-size: 0.56rem;
   }
 
   .empty-state {
@@ -1542,11 +1733,11 @@ h1 {
 }
 
 .camera-switch-button {
-  width: 48px;
-  height: 48px;
+  width: 38px;
+  height: 38px;
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 8px;
+  right: 8px;
   z-index: 8;
   display: none;
   place-items: center;
@@ -1556,8 +1747,8 @@ h1 {
   color: var(--violet-dark);
   background: rgba(255, 248, 242, 0.94);
   box-shadow:
-    0 4px 0 rgba(79, 61, 82, 0.18),
-    0 9px 20px rgba(44, 34, 48, 0.2);
+    0 3px 0 rgba(79, 61, 82, 0.18),
+    0 7px 15px rgba(44, 34, 48, 0.15);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform 160ms ease, background 160ms ease, opacity 160ms ease;
@@ -1584,8 +1775,8 @@ html.is-phone-device .camera-switch-button:not([hidden]) {
 }
 
 .camera-switch-button svg {
-  width: 27px;
-  height: 27px;
+  width: 20px;
+  height: 20px;
   overflow: visible;
   fill: none;
   stroke: currentColor;
@@ -1599,6 +1790,7 @@ html.is-phone-device .camera-switch-button:not([hidden]) {
 }
 
 .camera-stage[data-state="recording"] .camera-switch-button,
+.camera-stage[data-state="analyzing"] .camera-switch-button,
 .camera-stage.is-result-revealed .camera-switch-button {
   display: none !important;
 }
@@ -3145,4 +3337,204 @@ body {
     animation: none !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* 模型加载遮罩与虚化提示样式 */
+.model-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: grid;
+  place-items: center;
+  background: rgba(79, 61, 82, 0.45); /* 柔和暗色遮表层 */
+  backdrop-filter: blur(12px); /* 赋予高斯模糊/虚化效果 */
+  -webkit-backdrop-filter: blur(12px);
+  padding: 20px;
+  box-sizing: border-box;
+  animation: model-fade-in 250ms ease-out;
+  border-radius: inherit;
+}
+
+.model-loading-box {
+  background: var(--surface);
+  border: 2px solid var(--storybook-outline);
+  border-radius: 20px;
+  padding: 24px 20px;
+  width: min(340px, 92%);
+  text-align: center;
+  box-shadow: 
+    0 12px 30px rgba(79, 61, 82, 0.22),
+    0 3px 0 rgba(79, 61, 82, 0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.model-loading-paw {
+  font-size: 2.2rem;
+  display: inline-block;
+  animation: model-paw-bounce 1s ease-in-out infinite alternate;
+}
+
+.model-loading-box h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.15rem;
+  color: var(--violet-dark);
+}
+
+.model-loading-box p {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.model-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3.5px solid var(--storybook-lilac);
+  border-top-color: var(--violet);
+  border-radius: 50%;
+  animation: model-spin 800ms linear infinite;
+  margin-top: 6px;
+}
+
+@keyframes model-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes model-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes model-paw-bounce {
+  from { transform: translateY(0) scale(1) rotate(-8deg); }
+  to { transform: translateY(-8px) scale(1.05) rotate(8deg); }
+}
+
+/* 知识卡片放大弹窗样式：实现优雅的缩放和淡入过渡，与网站的童话 editorial 风格完美契合 */
+.knowledge-dialog {
+  width: min(420px, calc(100vw - 32px));
+  border: 0;
+  border-radius: 26px 22px 28px 23px;
+  padding: 0;
+  overflow: hidden;
+  color: var(--ink);
+  background: transparent;
+  box-shadow: 0 28px 74px rgba(79, 61, 82, 0.3);
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 220ms cubic-bezier(0.34, 1.56, 0.64, 1), transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.knowledge-dialog::backdrop {
+  background: rgba(79, 61, 82, 0);
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  transition: background-color 220ms ease, backdrop-filter 220ms ease, -webkit-backdrop-filter 220ms ease;
+}
+
+/* 当 dialog 激活可见时 */
+.knowledge-dialog.is-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.knowledge-dialog.is-visible::backdrop {
+  background: rgba(79, 61, 82, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.knowledge-dialog-content {
+  border: 3px solid var(--storybook-outline);
+  border-radius: inherit;
+  background: var(--paper);
+  padding: 30px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+  position: relative;
+}
+
+.knowledge-dialog-sparkle {
+  position: absolute;
+  top: -12px;
+  left: 24px;
+  color: var(--storybook-gold);
+  font-family: Georgia, serif;
+  font-size: 1.8rem;
+  text-shadow: 2px 2px 0 rgba(142, 108, 207, 0.25);
+  pointer-events: none;
+}
+
+.knowledge-dialog-subtitle {
+  margin: 0;
+  color: var(--coral-dark);
+  font-family: var(--body);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.knowledge-dialog-content h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.knowledge-dialog-content p#knowledge-dialog-copy {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.knowledge-dialog-content button {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* 结果卡片中宠物的心情/Mood 展示徽章：作为核心翻译结论、强化其主要展示属性 */
+.result-mood-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--yellow); /* 使用温馨高亮的暖黄色底色 */
+  border: 2px solid var(--storybook-outline); /* 加粗边框使其立体 */
+  border-radius: 99px;
+  padding: 6px 14px;
+  margin-top: 5px;
+  margin-bottom: 12px;
+  font-family: var(--body);
+  font-size: 0.85rem; /* 增大整体心情文字大小 */
+  font-weight: 850;
+  box-shadow: 
+    0 3px 0 rgba(79, 61, 82, 0.16), /* 增加童话立体层质感 */
+    0 6px 12px rgba(244, 199, 95, 0.15);
+}
+
+.result-mood-label {
+  color: var(--ink); /* 强化标签对比度 */
+  font-size: 0.85rem;
+}
+
+.result-mood-value {
+  color: var(--violet-dark);
+  font-family: var(--display);
+  font-size: 1.1rem; /* 让主要状态的心情单词极其醒目抢眼 */
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }

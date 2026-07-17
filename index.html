@@ -8,6 +8,12 @@
       content="Meet Pemi and try a playful AI-powered pet expression reading."
     />
     <title>Pemi | What Is Your Pet Thinking?</title>
+    <!-- 立即预加载 ONNX Runtime 脚本与 16M 的 YOLOv8 模型二进制文件，无需等待 JS Worker 启动，实现用户一打开网页便自动并行下载，极大地缩短后续模型热身时间 -->
+    <link rel="preload" href="/vendor/ort.min.js" as="script" />
+    <link rel="preload" href="/pet-tracking-utils.js" as="script" />
+    <link rel="preload" href="/pet-detector-worker.js" as="worker" />
+    <link rel="preload" href="/yolo26n.onnx" as="fetch" crossorigin="anonymous" />
+    
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -73,6 +79,17 @@
                 <div class="video-frame">
                   <video id="camera" autoplay playsinline muted></video>
                   <canvas id="snapshot" hidden></canvas>
+                  
+                  <!-- 模型加载中的遮罩与虚化提示语 -->
+                  <div id="model-loading-overlay" class="model-loading-overlay" hidden>
+                    <div class="model-loading-box">
+                      <span class="model-loading-paw">🐾</span>
+                      <h3>Pemi Finder is warming up...</h3>
+                      <p>It takes about a few seconds to load the AI model. Please wait patiently.</p>
+                      <div class="model-loading-spinner"></div>
+                    </div>
+                  </div>
+
                   <div id="empty-state" class="empty-state">
                     <div class="empty-state-illustration" aria-hidden="true">
                       <span class="storybook-pet-outline">
@@ -127,14 +144,64 @@
                     </div>
                   </div>
                   <div id="detection-prompt" class="detection-prompt" role="status" aria-live="polite" hidden>
-                    <p id="detection-prompt-title">No pet spotted yet</p>
-                    <small id="detection-prompt-copy">Bring your pet into the camera so Pemi can find them.</small>
-                  </div>
-                  <div id="waiting-overlay" class="waiting-overlay" hidden>
+                      <p id="detection-prompt-title">No pet spotted yet</p>
+                      <small id="detection-prompt-copy">Bring your pet into the camera so Pemi can find them.</small>
+                    </div>
+                    <div id="waiting-overlay" class="waiting-overlay" hidden>
                     <div class="waiting-status">
                       <span class="waiting-status-birds" aria-hidden="true">•••</span>
                       <p id="waiting-message" aria-live="polite">The birds found your pet...</p>
                     </div>
+                    <section id="knowledge-cards" class="knowledge-cards" aria-label="Pet knowledge cards" hidden>
+                      <div class="knowledge-heading">
+                        <p>While Pemi is thinking</p>
+                        <small>Tap a card to discover a tiny pet secret</small>
+                      </div>
+                      <div class="knowledge-card-grid">
+                        <button class="knowledge-card" type="button" aria-pressed="false">
+                          <span class="knowledge-card-inner">
+                            <span class="knowledge-card-face knowledge-card-front">
+                              <span class="knowledge-card-icon" aria-hidden="true">?</span>
+                              <span class="knowledge-card-label">Pet secret 01</span>
+                              <strong class="knowledge-card-question">Tap to reveal</strong>
+                            </span>
+                            <span class="knowledge-card-face knowledge-card-back">
+                              <span class="knowledge-card-label">Pet secret 01</span>
+                              <strong class="knowledge-card-title"></strong>
+                              <span class="knowledge-card-copy"></span>
+                            </span>
+                          </span>
+                        </button>
+                        <button class="knowledge-card" type="button" aria-pressed="false">
+                          <span class="knowledge-card-inner">
+                            <span class="knowledge-card-face knowledge-card-front">
+                              <span class="knowledge-card-icon" aria-hidden="true">?</span>
+                              <span class="knowledge-card-label">Pet secret 02</span>
+                              <strong class="knowledge-card-question">Tap to reveal</strong>
+                            </span>
+                            <span class="knowledge-card-face knowledge-card-back">
+                              <span class="knowledge-card-label">Pet secret 02</span>
+                              <strong class="knowledge-card-title"></strong>
+                              <span class="knowledge-card-copy"></span>
+                            </span>
+                          </span>
+                        </button>
+                        <button class="knowledge-card" type="button" aria-pressed="false">
+                          <span class="knowledge-card-inner">
+                            <span class="knowledge-card-face knowledge-card-front">
+                              <span class="knowledge-card-icon" aria-hidden="true">?</span>
+                              <span class="knowledge-card-label">Pet secret 03</span>
+                              <strong class="knowledge-card-question">Tap to reveal</strong>
+                            </span>
+                            <span class="knowledge-card-face knowledge-card-back">
+                              <span class="knowledge-card-label">Pet secret 03</span>
+                              <strong class="knowledge-card-title"></strong>
+                              <span class="knowledge-card-copy"></span>
+                            </span>
+                          </span>
+                        </button>
+                      </div>
+                    </section>
                   </div>
                   <button
                     id="camera-switch-btn"
@@ -161,6 +228,10 @@
                     <div class="result-heading">
                       <p class="result-kicker">Pemi's playful translation</p>
                       <span aria-hidden="true">&ldquo;</span>
+                    </div>
+                    <div id="result-mood-container" class="result-mood-container" hidden>
+                      <span class="result-mood-label">🐾 Mood:</span>
+                      <span id="result-mood-value" class="result-mood-value">Calm</span>
                     </div>
                     <h2 id="result-title">Listening closely...</h2>
                     <p id="result-copy"></p>
@@ -235,6 +306,17 @@
             </button>
           </div>
         </footer>
+      </div>
+    </dialog>
+
+    <!-- 知识卡片放大弹窗 (Mobile/Desktop 均可用) -->
+    <dialog id="knowledge-dialog" class="knowledge-dialog" aria-labelledby="knowledge-dialog-title">
+      <div class="knowledge-dialog-content">
+        <div class="knowledge-dialog-sparkle">✦</div>
+        <p class="knowledge-dialog-subtitle">🐾 Tiny Pet Secret</p>
+        <h2 id="knowledge-dialog-title">A wagging tail is not always happy</h2>
+        <p id="knowledge-dialog-copy">Tail height, speed, and the rest of the body tell the full story. A relaxed body matters more than the wag alone.</p>
+        <button id="knowledge-dialog-close" class="button primary" type="button">Got It!</button>
       </div>
     </dialog>
 
