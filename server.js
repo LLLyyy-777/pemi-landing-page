@@ -1013,6 +1013,12 @@ const server = createServer(async (request, response) => {
   response.end("Method not allowed");
 });
 
+// 设置 Node.js 服务器的网络套接字超大超时时间（10分钟 = 600,000ms）
+// 从而确保在远程 GPU AI 分析后端高负载排队时，Node 管道与 Nginx 之间的连接不被主动拆绝关闭
+server.timeout = 600000;
+server.keepAliveTimeout = 600000;
+server.headersTimeout = 610000;
+
 server.listen(port, () => {
   console.log(`Pemi demo is running at http://localhost:${port}`);
   console.log("Video storage: browser direct upload to Amazon S3");

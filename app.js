@@ -902,7 +902,10 @@ function stopDetectionLoop() {
 }
 
 function isPetTrackingState() {
-  return [STATES.SEARCHING, STATES.RECORDING, STATES.ANALYZING].includes(appState);
+  // 识别宠物核心判定仅在寻找阶段 (SEARCHING) 启用。
+  // 一旦识别到了宠物，立刻在录制阶段 (RECORDING) 与后续深度分析阶段 (ANALYZING) 停止使用模型，
+  // 避免高负载的录像与 AI 推理并发导致移动端或低配电脑内存爆发从而引发页面自动重载/刷新。
+  return [STATES.SEARCHING].includes(appState);
 }
 
 function scheduleDetection(delay) {
@@ -1770,6 +1773,7 @@ function stopCamera() {
   isSwitchingCamera = false;
   resumeBirdsAfterCameraSwitch = false;
   stopDetectionLoop();
+  terminateDetector();
   hideWaitingOverlay();
   deactivateBirdPlayground({ immediate: true });
   releaseMediaStream(stream);
@@ -2120,6 +2124,13 @@ async function runNewAnalysis() {
     await submitCurrentClip();
   } catch (error) {
     console.error(error);
+    if (stream) {
+      stopDetectionLoop();
+      releaseMediaStream(stream);
+      stream = null;
+      camera.srcObject = null;
+    }
+    terminateDetector();
     hideWaitingOverlay();
     stopDetectionLoop();
     deactivateBirdPlayground();
