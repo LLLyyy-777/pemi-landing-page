@@ -225,10 +225,10 @@ function refreshControls() {
     cameraSwitchAvailable !== false &&
     isCameraSwitchAllowedState();
 
-  startButton.hidden = Boolean(stream) || appState === STATES.REQUESTING_CAMERA;
+  startButton.hidden = Boolean(stream) || appState === STATES.REQUESTING_CAMERA || canRetry || appState === STATES.ANALYZING;
   startButton.disabled = appState === STATES.REQUESTING_CAMERA || isBusy() || isSwitchingCamera;
-  retryButton.hidden = !stream || !canRetry;
-  retryButton.disabled = isBusy() || isSwitchingCamera || !stream || !canRetry;
+  retryButton.hidden = !canRetry;
+  retryButton.disabled = isBusy() || isSwitchingCamera || !canRetry;
   cameraSwitchButton.hidden = !showCameraSwitch;
   cameraSwitchButton.disabled = isSwitchingCamera;
   cameraSwitchButton.classList.toggle("is-switching", isSwitchingCamera);
@@ -1244,6 +1244,35 @@ function handleDetectorFailure(error) {
   failPetDetector(error);
 }
 
+function terminateDetector() {
+  console.log("Terminating pet detector to release WebAssembly and SharedArrayBuffer memory...");
+  stopDetectionLoop();
+
+  if (detectorWorker) {
+    try {
+      detectorWorker.terminate();
+    } catch (e) {
+      console.warn("Failed to terminate workers:", e);
+    }
+    detectorWorker = null;
+  }
+
+  if (mainDetectorSession) {
+    if (typeof mainDetectorSession.release === "function") {
+      try {
+        mainDetectorSession.release();
+      } catch (e) {
+        console.warn("Inference session release failed:", e);
+      }
+    }
+    mainDetectorSession = null;
+  }
+
+  mainDetectorInitialization = null;
+  detectorReady = false;
+  detectorMode = null;
+}
+
 function initializeDetector() {
   console.log("Initializing Worker Pet Detector. Posting init config payload...");
   detectorReady = false;
@@ -1364,6 +1393,10 @@ function beginSearching() {
   petGuide.hidden = false;
   showDetectionPrompt();
   setStatus("Camera ready. Pemi is warming up the pet finder...");
+
+  if (detectorMode !== "worker" && detectorMode !== "main-loading") {
+    initializeDetector();
+  }
 }
 
 function createCameraConstraints(facingMode, exact = false) {
@@ -1995,6 +2028,18 @@ async function submitCurrentClip() {
     throw new Error("There is no pet clip to analyze.");
   }
 
+  // 开始深度分析前，主动关闭并释放摄像头设备与媒体流，防止长时间占用内存/不断缓存导致小运载页面刷新
+  if (stream) {
+    stopDetectionLoop();
+    releaseMediaStream(stream);
+    stream = null;
+    camera.srcObject = null;
+  }
+
+  // 深度分析时彻底终止并释放 ONNX 神经网络多线程 Web Worker 及 Wasm 运行时内存资源
+  // 这有利于在等待结果和展示结果时腾出几乎所有的页面内存，避免浏览器在 60s 内强制重新载入。
+  terminateDetector();
+
   setAppState(STATES.ANALYZING);
   setStatus("Pemi is listening closely and decoding those tiny feelings...");
 
@@ -2091,6 +2136,11 @@ function handleRetry() {
   deactivateBirdPlayground({ immediate: true });
   currentVideoBlob = null;
   resetDetectionHistory();
+
+  if (!stream) {
+    startCamera();
+    return;
+  }
 
   if (!detectorReady) {
     detectorFallback = false;
