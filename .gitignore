@@ -3,5 +3,3 @@ uploads/
 node_modules/
 .pnpm-store/
 .DS_Store
-artifacts/
-assets/

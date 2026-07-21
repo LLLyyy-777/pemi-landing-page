@@ -3,9 +3,9 @@
 Pemi is a storybook-style web experience that turns a five-second cat or dog video into a playful pet-to-human interpretation. The browser first checks that a pet is present, records a short clip only after stable detection, keeps the waiting period active with animated birds and tappable pet-knowledge cards, and then reveals the algorithm's reading beside a real frame from the recording.
 
 - **Live demo:** [https://pemiai.cn](https://pemiai.cn)
-- **Gitee repository:** [https://gitee.com/wegen_1/landing-page](https://gitee.com/wegen_1/landing-page)
-- **Product baseline documented here:** the current [`main`](https://gitee.com/wegen_1/landing-page/tree/main) version
-- **Latest visual-polish version:** [`codex/mobile-visual-polish`](https://gitee.com/wegen_1/landing-page/tree/codex/mobile-visual-polish)
+- **Gitee repository:** [https://github.com/LLLyyy-777/pemi-landing-page](https://github.com/LLLyyy-777/pemi-landing-page)
+- **Product baseline documented here:** the current [`main`](https://github.com/LLLyyy-777/pemi-landing-page/tree/main) version
+- **Latest visual-polish version:** [`main`](https://github.com/LLLyyy-777/pemi-landing-page/tree/main)
 
 > The live site changes only after a branch is merged and deployed. The visual-polish branch removes the “Playful AI preview” badge, gives the mobile page one continuous lavender-to-cream background, and refines the mobile title size, alignment, and spacing. It does not change the camera or analysis logic described below.
 
